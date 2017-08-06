@@ -12,6 +12,8 @@
 #include <fstream>
 #include <math.h>
 #include <vector>
+#include <tuple>
+#include <math.h>
 #include "map.h"
 
 /*
@@ -236,4 +238,45 @@ inline bool read_landmark_data(std::string filename, std::vector<LandmarkObs>& o
 	return true;
 }
 
+
+/* Converts coordinates from one coordinate system into another one
+ * @param x x position in the target coordinate system.
+ * @param y y position in the target coordinate system.
+ * @param theta orientation in the target coordinate system.
+ * @param x0 x position in source coordinate system.
+ * @param y0 y position in source coordinate system.
+ * 
+ * @return A tuple consisting of the new coordinates in the destination coordinate system.
+ */
+inline std::tuple<double, double> transform_coordinates(double x, double y, double theta, double x0, double y0)
+{
+  auto cos_theta = cos(theta);
+  auto sin_theta = sin(theta);
+
+  // Rotation + Translation
+  auto x_new = x + (cos_theta * x0) + (sin_theta * y0);
+  auto y_new = y + (-sin_theta * x0) + (cos_theta * y0);
+
+  return std::make_tuple(x_new, y_new);
+}
+
+/* Calculates the multivariate gaussian probability for two dimensions, assuming that both dims are independent.
+ * @param x x value.
+ * @param y y value.
+ * @param mu_x Mean x value.
+ * @param mu_y Mean y value.
+ * @param stddev_x Standard deviation of x.
+ * @param stddev_y Standard deviation of y.
+ */
+inline double multivariate_normal_pdf(double x, double y, double mu_x, double mu_y, double stddev_x, double stddev_y)
+{
+  auto dx = (x - mu_x) * (x - mu_x);
+  auto dy = (y - mu_y) * (y - mu_y);
+  auto cov_x = stddev_x * stddev_x;
+  auto cov_y = stddev_y * stddev_y;
+
+  auto p = exp(-(dx / (2 * cov_x) + dy / (2 * cov_y))) / (2 * M_PI * stddev_x * stddev_y);
+
+  return p;
+}
 #endif /* HELPER_FUNCTIONS_H_ */
