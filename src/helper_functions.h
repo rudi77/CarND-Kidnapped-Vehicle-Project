@@ -50,6 +50,9 @@ struct LandmarkObs {
   }
 };
 
+/*
+ * Represents a 2 dim point with x and y coordinates
+ */
 struct Coordinate
 {
   double x;
@@ -285,10 +288,7 @@ inline double multivariate_normal_pdf(double x, double y, double mu_x, double mu
   auto dy = (y - mu_y) * (y - mu_y);
   auto cov_x = stddev_x * stddev_x;
   auto cov_y = stddev_y * stddev_y;
-
   auto multiplier = 1.0 / (2 * M_PI * stddev_x * stddev_y);
-
-  //auto p = exp(-(dx / (2 * cov_x) + dy / (2 * cov_y))) * multiplier;
 
   auto p = exp(-dx / (2.0*cov_x) - dy / (2.0*cov_y)) * multiplier;
 
