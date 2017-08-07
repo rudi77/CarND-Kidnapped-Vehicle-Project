@@ -25,7 +25,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[])
   auto initial_weight = 1.0 / num_particles;
 
   // The num_particles is set in the constructor either with the default
-  // value of 500 particles or by providing the number of particles as a 
+  // value of 200 particles or by providing the number of particles as a 
   // ctor argument.
 
   // Create weights with default values
@@ -36,13 +36,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[])
   // Generate N particles and insert them into the particles vector
   for (auto i = 0; i < num_particles; i++)
   {
-    Particle particle;
-
-    particle.id = i;
-    particle.x = x;
-    particle.y = y;
-    particle.theta = theta;
-    particle.weight = initial_weight;
+    auto particle = Particle::create(i, x, y, theta, initial_weight);
 
     // add some noise
     add_noise(particle, gen, std);
@@ -114,18 +108,6 @@ vector<LandmarkObs> ParticleFilter::dataAssociation(vector<LandmarkObs> landmark
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], vector<LandmarkObs> observations, Map map_landmarks)
 {
-	// TODO: Update the weights of each particle using a mult-variate Gaussian distribution. You can read
-	//   more about this distribution here: https://en.wikipedia.org/wiki/Multivariate_normal_distribution
-
-	// NOTE: The observations are given in the VEHICLE'S coordinate system. Your particles are located
-	//   according to the MAP'S coordinate system. You will need to transform between the two systems.
-	//   Keep in mind that this transformation requires both rotation AND translation (but no scaling).
-	//   The following is a good resource for the theory:
-	//   https://www.willamette.edu/~gorr/classes/GeneralGraphics/Transforms/transforms2d.htm
-	//   and the following is a good resource for the actual equation to implement (look at equation 
-	//   3.33
-	//   http://planning.cs.uiuc.edu/node99.html
-
   auto weight_index = 0;
 
   for (auto& particle : particles)
