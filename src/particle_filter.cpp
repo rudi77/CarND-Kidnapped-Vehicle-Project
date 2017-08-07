@@ -12,6 +12,7 @@
 #include <iterator>
 #include <iostream>
 #include <limits>
+#include <assert.h>
 
 #include "particle_filter.h"
 
@@ -27,7 +28,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[])
   // value of 500 particles or by providing the number of particles as a 
   // ctor argument.
 
-    // Create weights with default values
+  // Create weights with default values
   weights.assign(num_particles, initial_weight);
 
   default_random_engine gen;
@@ -80,37 +81,35 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
   }
 }
 
-void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted, vector<LandmarkObs>& observations)
+vector<LandmarkObs> ParticleFilter::dataAssociation(vector<LandmarkObs> landmarks, vector<LandmarkObs>& observations)
 {
-	// Find the predicted measurement that is closest to each observed measurement and assign the 
-	// observed measurement to this particular landmark.
-
   auto associated_landmarks = vector<LandmarkObs>();
 
   LandmarkObs associated_landmark;
 
   // ForEach observed landmark:
-  //  Iterate over each predicted landmark and calculate the distance between observed and predicted landmark
-  //  Predicted landmark that is closest to observed landmark wins
+  //  Iterate over each landmark and calculate the distance between observed landmark and landmark
+  //  The observed landmark that is closest to landmark wins
   for (auto& observed_landmark : observations)
   {
     // Initial closest distance
     auto closest_dist = numeric_limits<double>::max();
     
-    for (auto& predicted_landmark : predicted)
+    for (auto& landmark : landmarks)
     {
-      // calc distance and compare it with closest_dist
-      auto distance = dist(observed_landmark.x, observed_landmark.y, predicted_landmark.x, predicted_landmark.y);
+      auto distance = dist(observed_landmark.x, observed_landmark.y, landmark.x, landmark.y);
       
       if (distance < closest_dist)
       {
         closest_dist = distance;
-        associated_landmark = predicted_landmark;
+        associated_landmark = landmark;
       }
     }
 
     associated_landmarks.push_back(associated_landmark);
   }
+
+  return associated_landmarks;
 }
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], vector<LandmarkObs> observations, Map map_landmarks)
@@ -127,10 +126,14 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], v
 	//   3.33
 	//   http://planning.cs.uiuc.edu/node99.html
 
+  auto weight_index = 0;
+
   for (auto& particle : particles)
   {
-    // 1.) Get all landmarks within the sensor's range
-    vector<LandmarkObs> predicted_landmarks;
+    // 1.) Get all landmarks within the particle's range. Therefore,
+    //     calculate the distance between the particle and the landmark.
+    //     Take landmark if the distance is smaller or equal the sensor's range.
+    vector<LandmarkObs> landmarks_in_range;
 
     for (auto& single_landmark : map_landmarks.landmark_list)
     {
@@ -140,47 +143,70 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], v
       {
         LandmarkObs landmark = { single_landmark.id_i, single_landmark.x_f, single_landmark.y_f };
 
-        predicted_landmarks.push_back(landmark);
+        landmarks_in_range.push_back(landmark);
       }
     }
 
-
     // 2.) Coordinate transformation of obervations.
-    vector<LandmarkObs> transformed_landmarks;
+    vector<LandmarkObs> transformed_observations;
 
     for (auto& observed_landmark : observations)
     {
       auto transformed_coordinates = transform_coordinates(particle.x, particle.y, particle.theta, observed_landmark.x, observed_landmark.y);
-      
-      auto transformed_observation = LandmarkObs();
-      transformed_observation.id = observed_landmark.id;
-      transformed_observation.x = std::get<0>(transformed_coordinates);
-      transformed_observation.y = std::get<1>(transformed_coordinates);
+      auto transformed_observation = LandmarkObs::Create(observed_landmark.id, transformed_coordinates.x, transformed_coordinates.y);
 
-      transformed_landmarks.push_back(transformed_observation);
+      transformed_observations.push_back(transformed_observation);
     }
 
+    // 3.) Data association
+    auto associated_landmark = dataAssociation(landmarks_in_range, transformed_observations);
 
-    // 2.) Data association
-    dataAssociation(predicted_landmarks, transformed_landmarks);
+    // 4.) Update weights
+    //     Calc probability for each observation and then multiply 
+    //     the probabilities with each other.
+    assert(transformed_observations.size() == associated_landmark.size());
 
-    // 3.) Update weights
+    auto weight = 1.0;
 
+    for (auto i = 0; i < transformed_observations.size(); i++)
+    {
+      // define them here for better readability. compiler will optimize it.
+      auto x = transformed_observations[i].x;
+      auto y = transformed_observations[i].y;
+      auto mu_x = associated_landmark[i].x;
+      auto mu_y = associated_landmark[i].y;
+
+      auto p = multivariate_normal_pdf(x, y, mu_x, mu_y, std_landmark[0], std_landmark[1]);
+
+      weight *= p;
+
+      //particle.associations.push_back(associated_landmark[i].id);
+    }
+
+    weights[weight_index++] = weight;
+
+    particle.weight = weight;
   }
-
-
-  //double multiplier = 1.0 / (2 * M_PI * landmark_std_x * landmark_std_y);
-  //double cov_x = pow(landmark_std_x, 2.0);
-  //double cov_y = pow(landmark_std_y, 2.0);
-
-  //double observation_prob_i = exp(-pow(measurement.x - nearest_landmark.x, 2.0) / (2.0*cov_x) - pow(measurement.y - nearest_landmark.y, 2.0) / (2.0*cov_y));
 }
 
 void ParticleFilter::resample() {
-	// TODO: Resample particles with replacement with probability proportional to their weight. 
+	// Resample particles with replacement with probability proportional to their weight. 
 	// NOTE: You may find std::discrete_distribution helpful here.
 	//   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
+  default_random_engine gen;
+  discrete_distribution<> d(weights.begin(), weights.end());
+  
+  vector<Particle> resampled_particles;
 
+  for (auto i = 0; i < num_particles; i++)
+  {
+    auto idx = d(gen);
+    resampled_particles.push_back(particles[idx]);
+  }
+
+  assert(particles.size() == resampled_particles.size());
+
+  particles = resampled_particles;
 }
 
 Particle ParticleFilter::SetAssociations(Particle particle, std::vector<int> associations, std::vector<double> sense_x, std::vector<double> sense_y)

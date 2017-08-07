@@ -43,6 +43,17 @@ struct LandmarkObs {
 	int id;				// Id of matching landmark in the map.
 	double x;			// Local (vehicle coordinates) x position of landmark observation [m]
 	double y;			// Local (vehicle coordinates) y position of landmark observation [m]
+
+  static LandmarkObs Create(int id, double x, double y)
+  {
+    return { id, x, y };
+  }
+};
+
+struct Coordinate
+{
+  double x;
+  double y;
 };
 
 /*
@@ -246,18 +257,18 @@ inline bool read_landmark_data(std::string filename, std::vector<LandmarkObs>& o
  * @param x0 x position in source coordinate system.
  * @param y0 y position in source coordinate system.
  * 
- * @return A tuple consisting of the new coordinates in the destination coordinate system.
+ * @return The new coordinates in the destination coordinate system.
  */
-inline std::tuple<double, double> transform_coordinates(double x, double y, double theta, double x0, double y0)
+inline Coordinate transform_coordinates(double x, double y, double theta, double x0, double y0)
 {
   auto cos_theta = cos(theta);
   auto sin_theta = sin(theta);
 
   // Rotation + Translation
-  auto x_new = x + (cos_theta * x0) + (sin_theta * y0);
-  auto y_new = y + (-sin_theta * x0) + (cos_theta * y0);
+  auto x_new = x + (cos_theta * x0) + (-sin_theta * y0);
+  auto y_new = y + (sin_theta * x0) + (cos_theta * y0);
 
-  return std::make_tuple(x_new, y_new);
+  return { x_new, y_new };
 }
 
 /* Calculates the multivariate gaussian probability for two dimensions, assuming that both dims are independent.
@@ -275,7 +286,11 @@ inline double multivariate_normal_pdf(double x, double y, double mu_x, double mu
   auto cov_x = stddev_x * stddev_x;
   auto cov_y = stddev_y * stddev_y;
 
-  auto p = exp(-(dx / (2 * cov_x) + dy / (2 * cov_y))) / (2 * M_PI * stddev_x * stddev_y);
+  auto multiplier = 1.0 / (2 * M_PI * stddev_x * stddev_y);
+
+  //auto p = exp(-(dx / (2 * cov_x) + dy / (2 * cov_y))) * multiplier;
+
+  auto p = exp(-dx / (2.0*cov_x) - dy / (2.0*cov_y)) * multiplier;
 
   return p;
 }
